@@ -1,4 +1,7 @@
+import { config } from '../config';
 import { Exporter, IntermediateTranslation, IntermediateTranslationFormat, Parser } from '../domain/formatters';
+
+export const JSON_MAX_NESTED_LEVELS = 100;
 
 export const jsonNestedParser: Parser = async (data: string) => {
   const parsed = JSON.parse(data);
@@ -9,8 +12,8 @@ export const jsonNestedParser: Parser = async (data: string) => {
   }
 
   const traverse = (obj, level = 0, parentTerm = undefined) => {
-    if (level >= 6) {
-      throw new Error('Too many nested levels in JSON content');
+    if (level > config.import.maxNestedLevels) {
+      throw new Error(`Too many nested levels in JSON content (>${config.import.maxNestedLevels})`);
     }
     for (const key of Object.keys(obj)) {
       const value = obj[key];
@@ -47,10 +50,17 @@ export const jsonNestedExporter: Exporter = async (data: IntermediateTranslation
         if (!current.hasOwnProperty(key)) {
           current[key] = {};
         }
+        if (typeof current[key] === 'string') {
+          throw new Error(
+            `You have a flat key that have both a value and sub keys. This is not allowed on nested JSON. Sub key: ${translation.term}`,
+          );
+        }
         current = current[key];
       }
+
       current[parts[partsLen - 1]] = translation.translation;
     }
   }
-  return JSON.stringify(result);
+
+  return JSON.stringify(result, null, 4);
 };
